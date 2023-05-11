@@ -1,0 +1,92 @@
+21782030359895
+Luminator
+0.1uF Ceramic
+C, Rect series, Radial, pin pitch=2.50mm, , length*width=4*2.5mm^2, Capacitor
+C Rect series Radial pin pitch 2.50mm  length 4mm width 2.5mm Capacitor
+0
+2
+2
+Luminator
+1x3 pads
+
+
+0
+3
+3
+Luminator
+1x10 pads
+
+
+0
+10
+10
+Luminator
+8x10 R Array
+
+
+0
+9
+9
+Luminator
+CONV_PXO7805-500-M-TR
+
+
+0
+4
+4
+Luminator
+CUI_PJ-002A
+
+
+0
+3
+3
+Luminator
+DS3231 RTC
+
+
+0
+6
+6
+Luminator
+ESP8266
+
+
+0
+30
+30
+Luminator
+LED_D3.0mm
+LED, diameter 3.0mm, 2 pins
+LED diameter 3.0mm 2 pins
+0
+2
+2
+Luminator
+SN74AHC595N
+
+
+0
+16
+16
+Luminator
+TBD62381APG
+
+
+0
+18
+18
+Luminator
+TBD62783APG
+
+
+0
+18
+18
+Luminator
+TBD62786APG
+
+
+0
+18
+18
