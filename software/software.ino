@@ -2,11 +2,16 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <EEPROM.h>
+#include "RTClib.h"
+#include <Wire.h>
 
-#define FLASHTIME 2000   //in milliseconds
+#define FLASHTIME 100   //in milliseconds
+
+char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", -14400);
+NTPClient timeClient(ntpUDP, "pool.ntp.org");
+RTC_DS1307 RTC;
 
 struct {
   short serial = D8;
@@ -23,6 +28,15 @@ struct {
   void clear(){
     digitalWrite(SRCLR, LOW); // clear
     digitalWrite(SRCLR, HIGH); // clear
+  }
+  void idle(){
+    digitalWrite(serial, HIGH);
+    for(int i = 0; i < 25; i++){
+      digitalWrite(SRCLK, HIGH);
+      digitalWrite(SRCLK, LOW);
+      digitalWrite(RCLK, HIGH);
+      digitalWrite(RCLK, LOW);
+    }
   }
   void incrementSR(){
     digitalWrite(SRCLK, HIGH);
@@ -102,7 +116,9 @@ void setup() {
     Serial.println("Settings saved to flash.");
   } 
   Serial.println("Starting up!");
-  WiFi.begin(settings.wifi_ssid, settings.wifi_password);  
+  WiFi.begin(settings.wifi_ssid, settings.wifi_password);
+  timeClient.setTimeOffset(settings.time_offset);
+  if (!RTC.begin()) {Serial.println("RTC module missing!");}
 
   for(int i = 0; i < 25; i++){
     delay(1000);
@@ -124,14 +140,19 @@ void setup() {
   pinMode(SR.SRCLK, OUTPUT);
   pinMode(SR.SRCLR, OUTPUT);
   SR.disable();
+  SR.idle();
   SR.clear();
+
+  RTC.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  Serial.println(__DATE__);
+  Serial.println(__TIME__);
 }
-/*
+
 void flashDisplay(){
   SR.enable();
   delay(FLASHTIME);
   SR.disable();
-  SR.clear();
+  SR.idle();
 }
 
 void writeTime(char hours, char minutes){
@@ -166,16 +187,14 @@ void writeDot(char location, bool state){ // one dot at a time
       }
       return;
 }
-*/
-
 
 void loop() {
+  /*
   if(WiFi.status() == WL_CONNECTED){
       timeClient.update();
       Serial.print(timeClient.getHours());Serial.print(":");Serial.print(timeClient.getMinutes());Serial.print(":");Serial.println(timeClient.getSeconds());
     }
   delay(2000);
-    /*
   for(short i = 0; i < 2; i++){
     for(short j = 0; j < 12; j++){
       Serial.printf("%d:%d\n",j,i);
@@ -184,5 +203,20 @@ void loop() {
     }
   }
   */
-
+  DateTime now = RTC.now();
+  Serial.print(now.year(), DEC);
+  Serial.print('/');
+  Serial.print(now.month(), DEC);
+  Serial.print('/');
+  Serial.print(now.day(), DEC);
+  Serial.print(" (");
+  Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
+  Serial.print(") ");
+  Serial.print(now.hour(), DEC);
+  Serial.print(':');
+  Serial.print(now.minute(), DEC);
+  Serial.print(':');
+  Serial.print(now.second(), DEC);
+  Serial.println();
+  delay(10000);
 }
