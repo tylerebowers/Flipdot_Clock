@@ -5,17 +5,15 @@
 
 #define FLASHTIME 2000   //in milliseconds
 
-
-const long utcOffsetInSeconds = -14400;
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
-/*
-struct shiftRegister{
-  short serial = 8;
-  short OE = 7;
-  short RCLK = 6;
-  short SRCLK = 5;
-  short SRCLR = 3;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", -14400);
+
+struct {
+  short serial = D8;
+  short OE = D7;
+  short RCLK = D6;
+  short SRCLK = D5;
+  short SRCLR = D3;
   void disable() {
     digitalWrite(OE, HIGH); // disable
   }
@@ -35,49 +33,77 @@ struct shiftRegister{
     digitalWrite(RCLK, LOW);
   }
 } SR;
-*/
+
 void setup() {
-  /*
-  pinMode(SR.serial, OUTPUT);
-  pinMode(SR.OE, OUTPUT);
-  pinMode(SR.RCLK, OUTPUT);
-  pinMode(SR.SRCLK, OUTPUT);
-  pinMode(SR.SRCLR, OUTPUT);
-  SR.disable();
-  SR.clear();
-  */
   Serial.begin(9600); 
-  Serial.setTimeout(20000);
   WiFi.hostname("Flipdot_Clock");
-  Serial.println("\nWelcome to the Flipdot Clock Software!");
-  delay(1000);
-
+  String inString;
   struct { 
-    char ssid[32] = "";
-    char password[64] = "";
-  } wifiSettings;
-  EEPROM.begin(sizeof(wifiSettings));
-  EEPROM.get(0,wifiSettings);
+    char wifi_ssid[32] = "";
+    char wifi_password[64] = "";
+    int time_offset;
+    bool left_is_MSD;
+  } settings;
+  EEPROM.begin(sizeof(settings));
+  EEPROM.get(0,settings);
 
-  String newSSID, newPASSWORD;
-  Serial.printf("Current WiFi settings: {SSID: %s, PASSWORD: %s}\n",wifiSettings.ssid, wifiSettings.password);
-  Serial.println("Enter new WIFI ssid:");
-  newSSID = Serial.readStringUntil('\n');
-  if(newSSID.length() >= 2){
-    strcpy(wifiSettings.ssid, newSSID.c_str());
-    Serial.println("Enter new WIFI password:");
-    newPASSWORD = Serial.readStringUntil('\n');
-    if(newPASSWORD.length() >= 2){
-      strcpy(wifiSettings.password, newPASSWORD.c_str());
+  Serial.println("\nWelcome to the Flipdot Clock Software!");
+  Serial.setTimeout(10000);
+  Serial.println("Would you like to enter settings? (y/n) (10s timeout)");
+  inString = Serial.readStringUntil('\n');
+  if (inString[0] == 'y'){
+    Serial.setTimeout(30000);
+    Serial.printf("Current WiFi settings: {SSID: %s, PASSWORD: %s}\n",settings.wifi_ssid, settings.wifi_password);
+    Serial.printf("Current time offset: {OFFSET: %d seconds}\n",settings.time_offset);
+    if(settings.left_is_MSD){Serial.printf("Current mode: {MSD: left}\n");} else {Serial.printf("Current mode: {MSD: right}\n");}
+    while(true){
+      Serial.println("What would you like to change? (wifi/offset/mode/exit)");
+      inString = "";
+      inString = Serial.readStringUntil('\n');
+      if (inString == "wifi"){
+        Serial.println("Enter new WIFI ssid:");
+        inString = "";
+        inString = Serial.readStringUntil('\n');
+        if(inString.length() >= 2){
+          strcpy(settings.wifi_ssid, inString.c_str());
+          Serial.println("Enter new WIFI password:");
+          inString = "";
+          inString = Serial.readStringUntil('\n');
+          Serial.println(inString);
+          if(inString.length() >= 2){
+            strcpy(settings.wifi_password, inString.c_str());
+          }
+          Serial.printf("New WiFi settings: {SSID: %s, PASSWORD: %s}\n",settings.wifi_ssid, settings.wifi_password);
+        }
+      } else if (inString == "offset"){
+        Serial.println("Enter new time offset in seconds from UTC:");
+        inString = "";
+        inString = Serial.readStringUntil('\n');
+        settings.time_offset = inString.toInt();
+        Serial.printf("New time offset: {OFFSET: %d seconds}\n",settings.time_offset);
+      } else if (inString == "mode"){
+        Serial.println("Enter what side the most significant digit should be on? (left/right)");
+        inString = "";
+        inString = Serial.readStringUntil('\n');
+        if(inString == "left") {
+          settings.left_is_MSD = true;
+        } else {
+          settings.left_is_MSD = false;
+        }
+        if(settings.left_is_MSD){Serial.printf("New mode: {MSD: left}\n");} else {Serial.printf("New mode: {MSD: right}\n");}
+      } else if (inString == "exit"){
+        break;
+      } else {
+        Serial.println("Please check command spelling.");
+      }
     }
-    Serial.printf("New WiFi settings: {SSID: %s, PASSWORD: %s}\n",wifiSettings.ssid, wifiSettings.password);
-    EEPROM.put(0,wifiSettings);
+    EEPROM.put(0,settings);
     EEPROM.commit();
-  }
-  Serial.println("Setup Finished!");
-  WiFi.begin(wifiSettings.ssid, wifiSettings.password);             
+    Serial.println("Settings saved to flash.");
+  } 
+  Serial.println("Starting up!");
+  WiFi.begin(settings.wifi_ssid, settings.wifi_password);  
 
-  
   for(int i = 0; i < 25; i++){
     delay(1000);
     if(WiFi.status() == WL_CONNECTED){
@@ -91,7 +117,14 @@ void setup() {
   if(WiFi.status() != WL_CONNECTED){
     Serial.println("Connection Error!");
   }
-  //make something for timezone offsets? 
+  
+  pinMode(SR.serial, OUTPUT);
+  pinMode(SR.OE, OUTPUT);
+  pinMode(SR.RCLK, OUTPUT);
+  pinMode(SR.SRCLK, OUTPUT);
+  pinMode(SR.SRCLR, OUTPUT);
+  SR.disable();
+  SR.clear();
 }
 /*
 void flashDisplay(){
