@@ -5,13 +5,15 @@
 #include "RTClib.h"
 #include <Wire.h>
 
-#define FLASHTIME 100   //in milliseconds
-
-char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+#define FLASHTIME 20   //in milliseconds
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org");
-RTC_DS1307 RTC;
+RTC_DS3231 RTC;
+DateTime RTCnow;
+
+bool needToSync = true;
+short lastMinute = 0;
 
 struct {
   short serial = D8;
@@ -117,8 +119,8 @@ void setup() {
   } 
   Serial.println("Starting up!");
   WiFi.begin(settings.wifi_ssid, settings.wifi_password);
-  timeClient.setTimeOffset(settings.time_offset);
   if (!RTC.begin()) {Serial.println("RTC module missing!");}
+  timeClient.setTimeOffset(settings.time_offset);
 
   for(int i = 0; i < 25; i++){
     delay(1000);
@@ -144,8 +146,7 @@ void setup() {
   SR.clear();
 
   RTC.adjust(DateTime(F(__DATE__), F(__TIME__)));
-  Serial.println(__DATE__);
-  Serial.println(__TIME__);
+  RTCnow = RTC.now();
 }
 
 void flashDisplay(){
@@ -155,8 +156,13 @@ void flashDisplay(){
   SR.idle();
 }
 
-void writeTime(char hours, char minutes){
-      return;
+void writeTime(short hours, short minutes){
+  if(hours > 12){
+    Serial.printf("TIME: %d:%d PM\n",hours-12,minutes);
+  } else{
+    Serial.printf("TIME: %d:%d AM\n",hours,minutes);
+  }
+  return;
 }
 
 void writeDot(char location, bool state){ // one dot at a time
@@ -189,34 +195,27 @@ void writeDot(char location, bool state){ // one dot at a time
 }
 
 void loop() {
-  /*
-  if(WiFi.status() == WL_CONNECTED){
+  if(WiFi.status() == WL_CONNECTED && needToSync){
       timeClient.update();
-      Serial.print(timeClient.getHours());Serial.print(":");Serial.print(timeClient.getMinutes());Serial.print(":");Serial.println(timeClient.getSeconds());
-    }
-  delay(2000);
-  for(short i = 0; i < 2; i++){
-    for(short j = 0; j < 12; j++){
-      Serial.printf("%d:%d\n",j,i);
-      writeDot(j, i);
-      flashDisplay();
-    }
+      RTC.adjust(DateTime(timeClient.getEpochTime()));    //update RTC
+      Serial.println(timeClient.getEpochTime());
+      Serial.println("Synced RTC!");
+      needToSync = false;
+  } else if (RTCnow.hour() == 18 && !needToSync){
+    needToSync = true;
+  } else if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi is NOT connected");
   }
-  */
-  DateTime now = RTC.now();
-  Serial.print(now.year(), DEC);
-  Serial.print('/');
-  Serial.print(now.month(), DEC);
-  Serial.print('/');
-  Serial.print(now.day(), DEC);
-  Serial.print(" (");
-  Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
-  Serial.print(") ");
-  Serial.print(now.hour(), DEC);
-  Serial.print(':');
-  Serial.print(now.minute(), DEC);
-  Serial.print(':');
-  Serial.print(now.second(), DEC);
-  Serial.println();
-  delay(10000);
+  
+  
+  while(true){  //wait till next minute
+    RTCnow = RTC.now();
+    if(RTCnow.minute() != lastMinute){    //update clock
+      writeTime(RTCnow.hour(), RTCnow.minute());
+      lastMinute = RTCnow.minute();
+      break;
+    }
+    delay(500);
+  }
+  delay(30000);
 }
