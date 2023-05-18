@@ -198,7 +198,6 @@ void loop() {
   if(WiFi.status() == WL_CONNECTED && needToSync){
       timeClient.update();
       RTC.adjust(DateTime(timeClient.getEpochTime()));    //update RTC
-      Serial.println(timeClient.getEpochTime());
       Serial.println("Synced RTC!");
       needToSync = false;
   } else if (RTCnow.hour() == 18 && !needToSync){
