@@ -11,9 +11,12 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org");
 RTC_DS3231 RTC;
 DateTime RTCnow;
-
+bool usingRTC = true;
 bool needToSync = true;
-short lastMinute = 0;
+bool leftIsMSD = true;
+short shownDisplay = 0;
+short shownMinute = -1;
+
 
 struct {
   short serial = D8;
@@ -69,9 +72,9 @@ void setup() {
   inString = Serial.readStringUntil('\n');
   if (inString[0] == 'y'){
     Serial.setTimeout(30000);
-    Serial.printf("Current WiFi settings: {SSID: %s, PASSWORD: %s}\n",settings.wifi_ssid, settings.wifi_password);
-    Serial.printf("Current time offset: {OFFSET: %d seconds}\n",settings.time_offset);
-    if(settings.left_is_MSD){Serial.printf("Current mode: {MSD: left}\n");} else {Serial.printf("Current mode: {MSD: right}\n");}
+    Serial.printf("  Current WiFi settings: {SSID: %s, PASSWORD: %s}\n",settings.wifi_ssid, settings.wifi_password);
+    Serial.printf("  Current time offset: {OFFSET: %d seconds}\n",settings.time_offset);
+    if(settings.left_is_MSD){Serial.printf("  Current mode: {MSD: left}\n");} else {Serial.printf("  Current mode: {MSD: right}\n");}
     while(true){
       Serial.println("What would you like to change? (wifi/offset/mode/exit)");
       inString = "";
@@ -89,14 +92,14 @@ void setup() {
           if(inString.length() >= 2){
             strcpy(settings.wifi_password, inString.c_str());
           }
-          Serial.printf("New WiFi settings: {SSID: %s, PASSWORD: %s}\n",settings.wifi_ssid, settings.wifi_password);
+          Serial.printf("  New WiFi settings: {SSID: %s, PASSWORD: %s}\n",settings.wifi_ssid, settings.wifi_password);
         }
       } else if (inString == "offset"){
         Serial.println("Enter new time offset in seconds from UTC:");
         inString = "";
         inString = Serial.readStringUntil('\n');
         settings.time_offset = inString.toInt();
-        Serial.printf("New time offset: {OFFSET: %d seconds}\n",settings.time_offset);
+        Serial.printf("  New time offset: {OFFSET: %d seconds}\n",settings.time_offset);
       } else if (inString == "mode"){
         Serial.println("Enter what side the most significant digit should be on? (left/right)");
         inString = "";
@@ -106,11 +109,11 @@ void setup() {
         } else {
           settings.left_is_MSD = false;
         }
-        if(settings.left_is_MSD){Serial.printf("New mode: {MSD: left}\n");} else {Serial.printf("New mode: {MSD: right}\n");}
+        if(settings.left_is_MSD){Serial.printf("  New mode: {MSD: left}\n");} else {Serial.printf("  New mode: {MSD: right}\n");}
       } else if (inString == "exit"){
         break;
       } else {
-        Serial.println("Please check command spelling.");
+        Serial.println("Please check command spelling and capitalization.");
       }
     }
     EEPROM.put(0,settings);
@@ -118,8 +121,9 @@ void setup() {
     Serial.println("Settings saved to flash.");
   } 
   Serial.println("Starting up!");
+  leftIsMSD = settings.left_is_MSD;
   WiFi.begin(settings.wifi_ssid, settings.wifi_password);
-  if (!RTC.begin()) {Serial.println("RTC module missing!");}
+  if (!RTC.begin()) {Serial.println("RTC module missing!"); usingRTC = false;}
   timeClient.setTimeOffset(settings.time_offset);
 
   for(int i = 0; i < 25; i++){
@@ -157,11 +161,41 @@ void flashDisplay(){
 }
 
 void writeTime(short hours, short minutes){
+  short newDisplay = 0;
+  short tenMins = (minutes/10)%10;
+  short oneMins = minutes%10;
+  if(hours >= 12){ //am/pm indicator
+      newDisplay |= 1UL << 7;
+  } //else do nothing because it is already 0.
   if(hours > 12){
-    Serial.printf("TIME: %d:%d PM\n",hours-12,minutes);
-  } else{
-    Serial.printf("TIME: %d:%d AM\n",hours,minutes);
+      hours = hours - 12; // for 12h format
   }
+  if(leftIsMSD){
+    for(int i = 3; i >= 0; i--){
+      newDisplay |= (((hours >> i) & 1UL) << 8+i);
+    }
+    for(int i = 3; i >= 0; i--){
+      newDisplay |= (((oneMins >> i) & 1UL) << i);
+    }
+  } else {
+    for(int i = 3; i >= 0; i--){
+      newDisplay |= (((oneMins >> i) & 1UL) << 8+i);
+    }
+    for(int i = 3; i >= 0; i--){
+      newDisplay |= (((hours >> i) & 1UL) << i);
+    }
+  }
+  for(int i = 2; i >= 0; i--){
+      newDisplay |= (((tenMins >> i) & 1UL) << 4+i);
+  }
+  Serial.printf("TIME: %d:%d\n",hours,minutes);
+  for(int i = 0; i < 12; i++){
+      if(((shownDisplay >> i) & 1UL) != ((newDisplay >> i) & 1UL)){
+        writeDot(i, ((newDisplay >> i) & 1UL));
+        delay(250);
+      }
+  }
+  shownDisplay = newDisplay;
   return;
 }
 
@@ -206,15 +240,19 @@ void loop() {
     Serial.println("WiFi is NOT connected");
   }
   
-  
-  while(true){  //wait till next minute
-    RTCnow = RTC.now();
-    if(RTCnow.minute() != lastMinute){    //update clock
-      writeTime(RTCnow.hour(), RTCnow.minute());
-      lastMinute = RTCnow.minute();
-      break;
-    }
-    delay(500);
+  if(usingRTC){
+    while(true){  //wait till next minute
+      RTCnow = RTC.now();
+      if(RTCnow.minute() != shownMinute){    //update clock
+        writeTime(RTCnow.hour(), RTCnow.minute());
+        shownMinute = RTCnow.minute();
+        break;
+      }
+      delay(500);
+    }   
+    delay(30000);
+  } else {
+    Serial.println("No RTC module, time will drift!");
+    delay(60000-FLASHTIME-1);
   }
-  delay(30000);
 }
