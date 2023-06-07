@@ -192,6 +192,7 @@ void writeTime(short hours, short minutes){
   for(int i = 0; i < 12; i++){
       if(((shownDisplay >> i) & 1UL) != ((newDisplay >> i) & 1UL)){
         writeDot(i, ((newDisplay >> i) & 1UL));
+        flashDisplay();
         delay(250);
       }
   }
