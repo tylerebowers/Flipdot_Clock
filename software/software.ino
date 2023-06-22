@@ -54,6 +54,13 @@ struct {
 } SR;
 
 void setup() {
+  pinMode(SR.serial, OUTPUT);
+  pinMode(SR.OE, OUTPUT);
+  pinMode(SR.RCLK, OUTPUT);
+  pinMode(SR.SRCLK, OUTPUT);
+  pinMode(SR.SRCLR, OUTPUT);
+  SR.disable();
+  SR.idle();
   Serial.begin(9600); 
   WiFi.hostname("Flipdot_Clock");
   String inString;
@@ -139,22 +146,31 @@ void setup() {
   if(WiFi.status() != WL_CONNECTED){
     Serial.println("Connection Error!");
   }
-  
-  pinMode(SR.serial, OUTPUT);
-  pinMode(SR.OE, OUTPUT);
-  pinMode(SR.RCLK, OUTPUT);
-  pinMode(SR.SRCLK, OUTPUT);
-  pinMode(SR.SRCLR, OUTPUT);
-  SR.disable();
-  SR.idle();
-  SR.clear();
 
   RTC.adjust(DateTime(F(__DATE__), F(__TIME__)));
   RTCnow = RTC.now();
+
+  for(int j = 0; j < 10; j++){
+    digitalWrite(SR.serial, LOW);
+    SR.incrementSR();
+    SR.incrementR();
+    digitalWrite(SR.serial, HIGH);
+    for(int i = 0; i < 25; i++){
+      SR.enable();
+      Serial.printf("CHECK %d\n",i);
+      delay(5000);
+      SR.disable();
+      SR.incrementSR();
+      SR.incrementR();
+      Serial.println("DISABLED");
+      delay(5000);
+    }
+  }
+  Serial.println("CHECK END");
 }
 
 void flashDisplay(){
-  SR.enable();
+  //SR.enable();
   delay(FLASHTIME);
   SR.disable();
   SR.idle();
@@ -189,13 +205,16 @@ void writeTime(short hours, short minutes){
       newDisplay |= (((tenMins >> i) & 1UL) << 4+i);
   }
   Serial.printf("TIME: %d:%d\n",hours,minutes);
+  for(int i = 12; i > 0; i--){Serial.printf("%d",(newDisplay >> i) & 1UL);}
+  Serial.println();
   for(int i = 0; i < 12; i++){
       if(((shownDisplay >> i) & 1UL) != ((newDisplay >> i) & 1UL)){
         writeDot(i, ((newDisplay >> i) & 1UL));
-        flashDisplay();
-        delay(250);
+        Serial.printf("%d:%d, ",i,(shownDisplay >> i) & 1UL);
+        delay(500);
       }
   }
+  Serial.println();
   shownDisplay = newDisplay;
   return;
 }
@@ -226,6 +245,7 @@ void writeDot(char location, bool state){ // one dot at a time
           SR.incrementR();
         }
       }
+      flashDisplay();
       return;
 }
 
