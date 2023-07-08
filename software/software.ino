@@ -34,15 +34,6 @@ struct {
     digitalWrite(SRCLR, LOW); // clear
     digitalWrite(SRCLR, HIGH); // clear
   }
-  void idle(){
-    digitalWrite(serial, HIGH);
-    for(int i = 0; i < 25; i++){
-      digitalWrite(SRCLK, HIGH);
-      digitalWrite(SRCLK, LOW);
-      digitalWrite(RCLK, HIGH);
-      digitalWrite(RCLK, LOW);
-    }
-  }
   void incrementSR(){
     digitalWrite(SRCLK, HIGH);
     digitalWrite(SRCLK, LOW);
@@ -60,7 +51,7 @@ void setup() {
   pinMode(SR.SRCLK, OUTPUT);
   pinMode(SR.SRCLR, OUTPUT);
   SR.disable();
-  SR.idle();
+  SR.clear();
   Serial.begin(9600); 
   WiFi.hostname("Flipdot_Clock");
   String inString;
@@ -149,31 +140,13 @@ void setup() {
 
   RTC.adjust(DateTime(F(__DATE__), F(__TIME__)));
   RTCnow = RTC.now();
-
-  for(int j = 0; j < 10; j++){
-    digitalWrite(SR.serial, LOW);
-    SR.incrementSR();
-    SR.incrementR();
-    digitalWrite(SR.serial, HIGH);
-    for(int i = 0; i < 25; i++){
-      SR.enable();
-      Serial.printf("CHECK %d\n",i);
-      delay(5000);
-      SR.disable();
-      SR.incrementSR();
-      SR.incrementR();
-      Serial.println("DISABLED");
-      delay(5000);
-    }
-  }
-  Serial.println("CHECK END");
 }
 
 void flashDisplay(){
-  //SR.enable();
+  SR.enable();
   delay(FLASHTIME);
   SR.disable();
-  SR.idle();
+  //SR.idle();
 }
 
 void writeTime(short hours, short minutes){
@@ -224,21 +197,21 @@ void writeDot(char location, bool state){ // one dot at a time
       SR.clear();
       for(short i = 0; i < 12; i++){
         if(i == location && state){
-          digitalWrite(SR.serial, HIGH);
+          digitalWrite(SR.serial, LOW);
           SR.incrementSR();
           SR.incrementR();
-          digitalWrite(SR.serial, LOW);
+          digitalWrite(SR.serial, HIGH);
           SR.incrementSR();
           SR.incrementR();
         } else if(i == location && !state){
+          digitalWrite(SR.serial, HIGH);
+          SR.incrementSR();
+          SR.incrementR();
           digitalWrite(SR.serial, LOW);
           SR.incrementSR();
           SR.incrementR();
-          digitalWrite(SR.serial, HIGH);
-          SR.incrementSR();
-          SR.incrementR();
         } else {
-          digitalWrite(SR.serial, HIGH);
+          digitalWrite(SR.serial, LOW);
           SR.incrementSR();
           SR.incrementR();
           SR.incrementSR();
@@ -250,7 +223,22 @@ void writeDot(char location, bool state){ // one dot at a time
 }
 
 void loop() {
-  if(WiFi.status() == WL_CONNECTED && needToSync){
+  SR.enable();
+  digitalWrite(SR.serial, HIGH);
+  Serial.printf("SET 0 HIGH\n");
+  SR.incrementSR();
+  SR.incrementR();
+  delay(2000);
+  digitalWrite(SR.serial, LOW);
+  for(int i = 1; i < 24; i++){
+    Serial.printf("SET %d HIGH\n",i);
+    SR.incrementSR();
+    SR.incrementR();
+    delay(2000);
+  }
+  delay(2000);
+  /*
+  if(WiFi.status() == WL_CONNECTED && needToSync && RTCnow.hour() != 18){
       timeClient.update();
       RTC.adjust(DateTime(timeClient.getEpochTime()));    //update RTC
       Serial.println("Synced RTC!");
@@ -276,4 +264,5 @@ void loop() {
     Serial.println("No RTC module, time will drift!");
     delay(60000-FLASHTIME-1);
   }
+  */
 }
