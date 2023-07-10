@@ -194,7 +194,7 @@ void writeTime(short hours, short minutes){
       if(((shownDisplay >> i) & 1UL) != ((newDisplay >> i) & 1UL)){
         writeDot(i, ((newDisplay >> i) & 1UL));
         Serial.printf("%d:%d, ",i,(shownDisplay >> i) & 1UL);
-        delay(500);
+        delay(settings.flip_delay);
       }
   }
   Serial.println();
