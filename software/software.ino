@@ -149,8 +149,35 @@ void setup() {
     Serial.println("Connection Error!");
   }
 
-  RTC.adjust(DateTime(F(__DATE__), F(__TIME__)));
   RTCnow = RTC.now();
+
+  Serial.println("Clearing display");
+  for(int i = 0; i < 12; i++){
+    writeDot(i,0);
+    delay(settings.flip_delay);
+  }
+}
+
+void selfTestTime(){
+  Serial.println("Begining self-test-time");
+  for(int r = 0; r < 2; r++){
+    for(int h = 1; h < 24; h++){
+      for(int m = 0; m < 60; m++){
+        writeTime(h, m);
+        delay(500);
+      }
+    }
+  }
+}
+
+void selfTestIndividual(){
+  Serial.println("Begining self-test-individual");
+  for(int i = 0; i < 2; i++){
+    for(int j = 0; j < 12; j++){
+      writeDot(j, i);
+      delay(1000);
+    }
+  }
 }
 
 void flashDisplay(){
@@ -164,33 +191,33 @@ void writeTime(short hours, short minutes){
   short tenMins = (minutes/10)%10;
   short oneMins = minutes%10;
   if(hours >= 12){ //am/pm indicator
-      newDisplay |= 1UL << 7;
+      newDisplay |= 1UL << 4;
   } //else do nothing because it is already 0.
   if(hours > 12){
       hours = hours - 12; // for 12h format
   }
   if(settings.left_is_MSD){
     for(int i = 3; i >= 0; i--){
-      newDisplay |= (((hours >> i) & 1UL) << 8+i);
+      newDisplay |= (((hours >> i) & 1UL) << 11-i);
     }
     for(int i = 3; i >= 0; i--){
-      newDisplay |= (((oneMins >> i) & 1UL) << i);
+      newDisplay |= (((oneMins >> i) & 1UL) << 3-i);
     }
   } else {
     for(int i = 3; i >= 0; i--){
-      newDisplay |= (((oneMins >> i) & 1UL) << 8+i);
+      newDisplay |= (((oneMins >> i) & 1UL) << 11-i);
     }
     for(int i = 3; i >= 0; i--){
-      newDisplay |= (((hours >> i) & 1UL) << i);
+      newDisplay |= (((hours >> i) & 1UL) << 3-i);
     }
   }
   for(int i = 2; i >= 0; i--){
-      newDisplay |= (((tenMins >> i) & 1UL) << 4+i);
+      newDisplay |= (((tenMins >> i) & 1UL) << 7-i);
   }
   Serial.printf("TIME: %d:%d\n",hours,minutes);
-  for(int i = 12; i > 0; i--){Serial.printf("%d",(newDisplay >> i) & 1UL);}
+  for(int i = 11; i >= 0; i--){Serial.printf("%d",(newDisplay >> i) & 1UL);}
   Serial.println();
-  for(int i = 0; i < 12; i++){
+  for(int i = 11; i >= 0; i--){
       if(((shownDisplay >> i) & 1UL) != ((newDisplay >> i) & 1UL)){
         writeDot(i, ((newDisplay >> i) & 1UL));
         Serial.printf("%d:%d, ",i,(shownDisplay >> i) & 1UL);
