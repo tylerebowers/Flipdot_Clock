@@ -60,9 +60,9 @@ void setup() {
   SR.clear();
   Serial.begin(9600); 
   WiFi.hostname("Flipdot_Clock");
-  String inString;
   EEPROM.begin(sizeof(settings));
   EEPROM.get(0,settings);
+  String inString;
 
   Serial.println("\nWelcome to the Flipdot Clock Software!");
   Serial.setTimeout(10000);
@@ -142,20 +142,20 @@ void setup() {
       timeClient.begin();
       break;
     } else {
-      Serial.printf("Attempting Connection (%d)\n",i+1);
+      Serial.printf("Attempting WiFi connection (%d)\n",i+1);
     }
   }
   if(WiFi.status() != WL_CONNECTED){
-    Serial.println("Connection Error!");
+    Serial.println("WiFi Connection Error! (check SSID or Password)");
   }
 
-  RTCnow = RTC.now();
-
-  Serial.println("Clearing display");
+  Serial.println("Clearing display...");
   for(int i = 0; i < 12; i++){
     writeDot(i,0);
     delay(settings.flip_delay);
   }
+  Serial.println("Display cleared.");
+  delay(1000);
 }
 
 void selfTestTime(){
@@ -195,6 +195,8 @@ void writeTime(short hours, short minutes){
   } //else do nothing because it is already 0.
   if(hours > 12){
       hours = hours - 12; // for 12h format
+  } else if(hours == 0){
+    hours = 12;
   }
   if(settings.left_is_MSD){
     for(int i = 3; i >= 0; i--){
@@ -215,22 +217,20 @@ void writeTime(short hours, short minutes){
       newDisplay |= (((tenMins >> i) & 1UL) << 7-i);
   }
   Serial.printf("TIME: %d:%d\n",hours,minutes);
-  for(int i = 11; i >= 0; i--){Serial.printf("%d",(newDisplay >> i) & 1UL);}
-  Serial.println();
+  //for(int i = 11; i >= 0; i--){Serial.printf("%d",(newDisplay >> i) & 1UL);} Serial.println();
   for(int i = 11; i >= 0; i--){
       if(((shownDisplay >> i) & 1UL) != ((newDisplay >> i) & 1UL)){
         writeDot(i, ((newDisplay >> i) & 1UL));
-        Serial.printf("%d:%d, ",i,(shownDisplay >> i) & 1UL);
+        //Serial.printf("%d:%d, ",i,(shownDisplay >> i) & 1UL); Serial.println();
         delay(settings.flip_delay);
       }
   }
-  Serial.println();
   shownDisplay = newDisplay;
   return;
 }
 
 void writeDot(char location, bool state){ // one dot at a time
-      SR.disable();
+      SR.disable(); // why not
       SR.clear();
       for(short i = 0; i < 12; i++){
         if(i == location && state){
@@ -260,20 +260,6 @@ void writeDot(char location, bool state){ // one dot at a time
 }
 
 void loop() {
-  /*
-  for(int i = 0; i < 12; i++){
-    writeDot(i, 1);
-    Serial.printf("%d ON\n",i);
-    delay(50);
-  }
-  delay(1000);
-  for(int i = 0; i < 12; i++){
-    writeDot(i, 0);
-    Serial.printf("%d OFF\n",i);
-    delay(50);
-  }
-  delay(1000);
-  */
   if(needToSync && RTCnow.hour() != 17 && WiFi.status() == WL_CONNECTED){
       timeClient.update();
       RTC.adjust(DateTime(timeClient.getEpochTime()));    //update RTC
@@ -285,20 +271,14 @@ void loop() {
     Serial.println("WiFi is NOT connected");
   }
   
-  if(usingRTC){
-    while(true){  //wait till next minute
-      RTCnow = RTC.now();
-      if(RTCnow.minute() != shownMinute){    //update clock
-        writeTime(RTCnow.hour(), RTCnow.minute());
-        shownMinute = RTCnow.minute();
-        break;
-      }
-      delay(500);
-    }   
-    delay(30000);
-  } else {
-    Serial.println("No RTC module found!");
-    delay(60000-FLASHTIME-1);
-  }
-  
+  while(true){  //wait till next minute
+    RTCnow = RTC.now();
+    if(RTCnow.minute() != shownMinute){    //update clock
+      writeTime(RTCnow.hour(), RTCnow.minute());
+      shownMinute = RTCnow.minute();
+      break;
+    }
+    delay(500);
+  }   
+  delay(50000);
 }
