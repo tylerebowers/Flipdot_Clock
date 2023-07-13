@@ -11,8 +11,6 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org");
 RTC_DS3231 RTC;
 DateTime RTCnow;
-bool usingRTC = true;
-bool needToSync = true;
 short shownDisplay = 0;
 short shownMinute = -1;
 struct { 
@@ -64,16 +62,17 @@ void setup() {
   EEPROM.get(0,settings);
   String inString;
 
-  Serial.println("\nWelcome to the Flipdot Clock Software!");
   Serial.setTimeout(10000);
+  Serial.println("\nWelcome to the Flipdot Clock Software!");
+  Serial.printf("  Current WiFi settings: {SSID: %s, PASSWORD: %s}\n",settings.wifi_ssid, settings.wifi_password);
+  Serial.printf("  Current time offset: {OFFSET: %d seconds}\n",settings.time_offset);
+  Serial.printf("  Current flip delay: {DELAY: %d milliseconds}\n",settings.flip_delay);
+  if(settings.left_is_MSD){Serial.printf("  Current mode: {MSD: left}\n");} else {Serial.printf("  Current mode: {MSD: right}\n");}
   Serial.println("Would you like to enter settings? (y/n) (10s timeout)");
+  
   inString = Serial.readStringUntil('\n');
   if (inString[0] == 'y'){
     Serial.setTimeout(30000);
-    Serial.printf("  Current WiFi settings: {SSID: %s, PASSWORD: %s}\n",settings.wifi_ssid, settings.wifi_password);
-    Serial.printf("  Current time offset: {OFFSET: %d seconds}\n",settings.time_offset);
-    Serial.printf("  Current flip delay: {DELAY: %d milliseconds}\n",settings.flip_delay);
-    if(settings.left_is_MSD){Serial.printf("  Current mode: {MSD: left}\n");} else {Serial.printf("  Current mode: {MSD: right}\n");}
     while(true){
       Serial.println("What would you like to change? (wifi/offset/delay/mode/exit)");
       inString = "";
@@ -132,7 +131,7 @@ void setup() {
   } 
   Serial.println("Starting up!");
   WiFi.begin(settings.wifi_ssid, settings.wifi_password);
-  if (!RTC.begin()) {Serial.println("RTC module missing!"); usingRTC = false;}
+  if (!RTC.begin()) {Serial.println("RTC module missing!");}
   timeClient.setTimeOffset(settings.time_offset);
 
   for(int i = 0; i < 30; i++){
@@ -149,13 +148,19 @@ void setup() {
     Serial.println("WiFi Connection Error! (check SSID or Password)");
   }
 
+  clearDisplay();
+  delay(1000);
+
+}
+
+void clearDisplay(){
   Serial.println("Clearing display...");
   for(int i = 0; i < 12; i++){
     writeDot(i,0);
     delay(settings.flip_delay);
   }
+  shownDisplay = 0;
   Serial.println("Display cleared.");
-  delay(1000);
 }
 
 void selfTestTime(){
@@ -187,17 +192,18 @@ void flashDisplay(){
 }
 
 void writeTime(short hours, short minutes){
+  //Serial.printf("IN: H:%d, M:%d\n",hours,minutes);
   short newDisplay = 0;
   short tenMins = (minutes/10)%10;
   short oneMins = minutes%10;
   if(hours >= 12){ //am/pm indicator
       newDisplay |= 1UL << 4;
   } //else do nothing because it is already 0.
-  if(hours > 12){
-      hours = hours - 12; // for 12h format
-  } else if(hours == 0){
+  if(hours == 0){
     hours = 12;
-  }
+  } else if(hours > 12){
+      hours = hours - 12; // for 12h format
+  } 
   if(settings.left_is_MSD){
     for(int i = 3; i >= 0; i--){
       newDisplay |= (((hours >> i) & 1UL) << 11-i);
@@ -207,10 +213,10 @@ void writeTime(short hours, short minutes){
     }
   } else {
     for(int i = 3; i >= 0; i--){
-      newDisplay |= (((oneMins >> i) & 1UL) << 11-i);
+      newDisplay |= (((hours >> i) & 1UL) << 3-i);
     }
     for(int i = 3; i >= 0; i--){
-      newDisplay |= (((hours >> i) & 1UL) << 3-i);
+      newDisplay |= (((oneMins >> i) & 1UL) << 11-i);
     }
   }
   for(int i = 2; i >= 0; i--){
@@ -259,26 +265,30 @@ void writeDot(char location, bool state){ // one dot at a time
       return;
 }
 
-void loop() {
-  if(needToSync && RTCnow.hour() != 17 && WiFi.status() == WL_CONNECTED){
-      timeClient.update();
-      RTC.adjust(DateTime(timeClient.getEpochTime()));    //update RTC
-      Serial.println("Synced RTC!");
-      needToSync = false;
-  } else if (RTCnow.hour() == 17 && !needToSync){
-    needToSync = true;
+void syncRTC(){
+  if(WiFi.status() == WL_CONNECTED){
+    timeClient.update();
+    RTC.adjust(DateTime(timeClient.getEpochTime()));    //update RTC
+    Serial.println("Synced RTC!");
   } else if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi is NOT connected");
+    Serial.println("WiFi is NOT connected, could NOT sync time!");
   }
+}
+
+void loop() {
   
   while(true){  //wait till next minute
     RTCnow = RTC.now();
     if(RTCnow.minute() != shownMinute){    //update clock
+      if(RTCnow.hour() == 12 && RTCnow.minute() == 0){
+        syncRTC();
+        clearDisplay();
+      } 
       writeTime(RTCnow.hour(), RTCnow.minute());
       shownMinute = RTCnow.minute();
       break;
     }
     delay(500);
   }   
-  delay(50000);
+  delay(30000);
 }
