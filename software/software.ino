@@ -5,7 +5,7 @@
 #include "RTClib.h"
 #include <Wire.h>
 
-#define FLASHTIME 5   //in milliseconds
+#define FLASHTIME 8   //in milliseconds
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org");
@@ -148,6 +148,7 @@ void setup() {
     Serial.println("WiFi Connection Error! (check SSID or Password)");
   }
 
+  syncRTC();
   clearDisplay();
   delay(1000);
 
@@ -161,6 +162,7 @@ void clearDisplay(){
   }
   shownDisplay = 0;
   Serial.println("Display cleared.");
+  delay(250);
 }
 
 void selfTestTime(){
@@ -196,7 +198,7 @@ void writeTime(short hours, short minutes){
   short newDisplay = 0;
   short tenMins = (minutes/10)%10;
   short oneMins = minutes%10;
-  if(hours >= 12){ //am/pm indicator
+  if(hours/12){ //am/pm indicator
       newDisplay |= 1UL << 4;
   } //else do nothing because it is already 0.
   if(hours == 0){
