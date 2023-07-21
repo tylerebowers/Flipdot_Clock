@@ -13,14 +13,17 @@ RTC_DS3231 RTC;
 DateTime RTCnow;
 short shownDisplay = 0;
 short shownMinute = -1;
+
 struct { 
   char wifi_ssid[32] = "";
   char wifi_password[64] = "";
   int time_offset;
   int flip_delay;
   bool left_is_MSD;
+  bool active_hours_enable;
+  int active_lowerbound;
+  int active_upperbound;
 } settings;
-
 
 struct {
   short serial = D8;
@@ -65,6 +68,7 @@ void setup() {
   Serial.setTimeout(10000);
   Serial.println("\nWelcome to the Flipdot Clock Software!");
   Serial.printf("  Current WiFi settings: {SSID: %s, PASSWORD: %s}\n",settings.wifi_ssid, settings.wifi_password);
+  if(settings.active_hours_enable){Serial.printf("  Current active hours: {ENABLE: true, START: %d, STOP: %d}\n",settings.active_lowerbound,settings.active_upperbound);}else{Serial.printf("  Current active hours: {ENABLE: false}\n");}
   Serial.printf("  Current time offset: {OFFSET: %d seconds}\n",settings.time_offset);
   Serial.printf("  Current flip delay: {DELAY: %d milliseconds}\n",settings.flip_delay);
   if(settings.left_is_MSD){Serial.printf("  Current mode: {MSD: left}\n");} else {Serial.printf("  Current mode: {MSD: right}\n");}
@@ -74,7 +78,7 @@ void setup() {
   if (inString[0] == 'y'){
     Serial.setTimeout(30000);
     while(true){
-      Serial.println("What would you like to change? (wifi/offset/delay/mode/exit)");
+      Serial.println("What would you like to change? (wifi/offset/delay/mode/active/exit)");
       inString = "";
       inString = Serial.readStringUntil('\n');
       if (inString == "wifi"){
@@ -119,6 +123,35 @@ void setup() {
           settings.left_is_MSD = false;
         }
         if(settings.left_is_MSD){Serial.printf("  New mode: {MSD: left}\n");} else {Serial.printf("  New mode: {MSD: right}\n");}
+      } else if (inString == "active") {
+        Serial.println("Active hours control when the dots can flip. Important note: lowerbound MUST be less than upperbound. (active hours cannot be interday, intraday only)");
+        Serial.println("Enter if active hours should be enabled? (true/false)");
+        inString = "";
+        inString = Serial.readStringUntil('\n');
+        if(inString == "true") {
+          settings.active_hours_enable = true;
+        } else {
+          settings.active_hours_enable = false;
+        }
+        if(settings.active_hours_enable){
+          Serial.println("Enter the LOWER bound hour (when to start active hours)? (0-23)");
+          inString = "";
+          inString = Serial.readStringUntil('\n');
+          if(inString.toInt() < 24 && inString.toInt() >= 0){
+            settings.active_lowerbound = inString.toInt();
+          } else {
+            Serial.println("The number you entered was out of range (0-23).");
+          }
+          Serial.println("Enter the UPPER bound hour (when to stop active hours)? (0-23)");
+          inString = "";
+          inString = Serial.readStringUntil('\n');
+          if(inString.toInt() < 24 && inString.toInt() >= 0 && inString.toInt() > settings.active_lowerbound){
+            settings.active_upperbound = inString.toInt();
+          } else {
+            Serial.println("The number you entered was out of range (0-23) or is less than lowerbound.");
+          }
+        }
+        if(settings.active_hours_enable){Serial.printf("  New active hours: {ENABLE: true, START: %d, STOP: %d}\n",settings.active_lowerbound,settings.active_upperbound);}else{Serial.printf("  New active hours: {ENABLE: false}\n");}
       } else if (inString == "exit"){
         break;
       } else {
@@ -224,7 +257,6 @@ void writeTime(short hours, short minutes){
   for(int i = 2; i >= 0; i--){
       newDisplay |= (((tenMins >> i) & 1UL) << 7-i);
   }
-  Serial.printf("TIME: %d:%d\n",hours,minutes);
   //for(int i = 11; i >= 0; i--){Serial.printf("%d",(newDisplay >> i) & 1UL);} Serial.println();
   for(int i = 11; i >= 0; i--){
       if(((shownDisplay >> i) & 1UL) != ((newDisplay >> i) & 1UL)){
@@ -286,7 +318,18 @@ void loop() {
         syncRTC();
         clearDisplay();
       } 
-      writeTime(RTCnow.hour(), RTCnow.minute());
+      if(settings.active_hours_enable){
+        if(RTCnow.hour() >= settings.active_lowerbound && RTCnow.hour() < settings.active_upperbound){
+          Serial.printf("TIME: %d:%d\n",RTCnow.hour(), RTCnow.minute());
+          writeTime(RTCnow.hour(), RTCnow.minute());
+        } else {
+          Serial.println("Outside active hours.");
+          if(shownDisplay != 0){clearDisplay();}
+        }
+      } else {
+        Serial.printf("TIME: %d:%d\n",RTCnow.hour(), RTCnow.minute());
+        writeTime(RTCnow.hour(), RTCnow.minute());
+      }
       shownMinute = RTCnow.minute();
       break;
     }
