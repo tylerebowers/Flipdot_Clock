@@ -66,7 +66,7 @@ void setup() {
   String inString;
 
   Serial.setTimeout(10000);
-  Serial.println("\nWelcome to the Flipdot Clock Software!");
+  Serial.println("\nWelcome to the Flipdot Clock Software Version 1.0!");
   Serial.printf("  Current WiFi settings: {SSID: %s, PASSWORD: %s}\n",settings.wifi_ssid, settings.wifi_password);
   if(settings.active_hours_enable){Serial.printf("  Current active hours: {ENABLE: true, START: %d, STOP: %d}\n",settings.active_lowerbound,settings.active_upperbound);}else{Serial.printf("  Current active hours: {ENABLE: false}\n");}
   Serial.printf("  Current time offset: {OFFSET: %d seconds}\n",settings.time_offset);
