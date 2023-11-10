@@ -1,17 +1,18 @@
 #include <ESP8266WiFi.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 #include <EEPROM.h>
 #include "RTClib.h"
 #include <Wire.h>
-#include <time.h>  
 
-#define NTP_SERVER "at.pool.ntp.org"
 #define FLASHTIME 8   //in milliseconds
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org");
 RTC_DS3231 RTC;
 DateTime RTCnow;
 short shownDisplay = 0;
 short shownMinute = -1;
-time_t now;
-tm tm;
 
 struct { 
   char wifi_ssid[32] = "";
@@ -22,7 +23,6 @@ struct {
   bool active_hours_enable;
   int active_lowerbound;
   int active_upperbound;
-  char timezone[48] = "";
 } settings;
 
 struct {
@@ -72,14 +72,13 @@ void setup() {
   Serial.printf("  Current time offset: {OFFSET: %d seconds}\n",settings.time_offset);
   Serial.printf("  Current flip delay: {DELAY: %d milliseconds}\n",settings.flip_delay);
   if(settings.left_is_MSD){Serial.printf("  Current mode: {MSD: left}\n");} else {Serial.printf("  Current mode: {MSD: right}\n");}
-  Serial.printf("  Current timezone: {TIMEZONE: %s}\n",settings.timezone);
-  Serial.println("Would you like to enter settings? (y/n) (15s timeout)");
+  Serial.println("Would you like to enter settings? (y/n) (10s timeout)");
   
   inString = Serial.readStringUntil('\n');
   if (inString[0] == 'y'){
     Serial.setTimeout(30000);
     while(true){
-      Serial.println("What would you like to change? (wifi/offset/delay/mode/active/timezone/exit)");
+      Serial.println("What would you like to change? (wifi/offset/delay/mode/active/exit)");
       inString = "";
       inString = Serial.readStringUntil('\n');
       if (inString == "wifi"){
@@ -153,17 +152,6 @@ void setup() {
           }
         }
         if(settings.active_hours_enable){Serial.printf("  New active hours: {ENABLE: true, START: %d, STOP: %d}\n",settings.active_lowerbound,settings.active_upperbound);}else{Serial.printf("  New active hours: {ENABLE: false}\n");}
-      } else if (inString == "timezone"){
-        Serial.println("For your timezone use: https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv");
-        Serial.println("Enter new timezone :");
-        inString = "";
-        inString = Serial.readStringUntil('\n');
-        if(inString.length() >= 2){
-          strcpy(settings.timezone, inString.c_str());
-          Serial.printf("  New timezone: {TIMEZONE: %s}\n",settings.timezone);
-        } else {
-          Serial.println("timezone was not long enough!");
-        }
       } else if (inString == "exit"){
         break;
       } else {
@@ -183,6 +171,7 @@ void setup() {
       delay(1000);
       if(WiFi.status() == WL_CONNECTED){
         Serial.print("WiFi Connection Established! (IP address: ");Serial.print(WiFi.localIP());Serial.println(")");
+        timeClient.begin();
         break;
       } else {
         Serial.printf("Attempting WiFi connection (%d)\n",i+1);
@@ -193,10 +182,9 @@ void setup() {
     Serial.println("WiFi Connection Error! (check SSID, Password, or network availability)");
   }
 
-  Serial.println("Configuring Time...");
-  configTime(settings.timezone, NTP_SERVER);
-  
+
   if (!RTC.begin()) {Serial.println("RTC module missing!");}
+  timeClient.setTimeOffset(settings.time_offset);
   syncRTC();
   clearDisplay();
   delay(1000);
@@ -317,9 +305,8 @@ void writeDot(char location, bool state){ // one dot at a time
 
 void syncRTC(){
   if(WiFi.status() == WL_CONNECTED){
-    time(&now);                       // read the current time
-    localtime_r(&now, &tm);           // update the structure tm with the current time
-    RTC.adjust(DateTime(now+settings.time_offset));    //update RTC
+    timeClient.update();
+    RTC.adjust(DateTime(timeClient.getEpochTime()));    //update RTC
     Serial.println("Synced RTC!");
   } else if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi is NOT connected, could NOT sync time!");
