@@ -65,7 +65,7 @@ void setup() {
   EEPROM.get(0,settings);
   String inString;
 
-  Serial.setTimeout(10000);
+  Serial.setTimeout(15000);
   Serial.println("\nWelcome to the Flipdot Clock Software Version 1.0!");
   Serial.printf("  Current WiFi settings: {SSID: %s, PASSWORD: %s}\n",settings.wifi_ssid, settings.wifi_password);
   if(settings.active_hours_enable){Serial.printf("  Current active hours: {ENABLE: true, START: %d, STOP: %d}\n",settings.active_lowerbound,settings.active_upperbound);}else{Serial.printf("  Current active hours: {ENABLE: false}\n");}
@@ -163,24 +163,28 @@ void setup() {
     Serial.println("Settings saved to flash.");
   } 
   Serial.println("Starting up!");
-  WiFi.begin(settings.wifi_ssid, settings.wifi_password);
-  if (!RTC.begin()) {Serial.println("RTC module missing!");}
-  timeClient.setTimeOffset(settings.time_offset);
 
-  for(int i = 0; i < 30; i++){
-    delay(1000);
-    if(WiFi.status() == WL_CONNECTED){
-      Serial.print("WiFi Connection Established! (IP address: ");Serial.print(WiFi.localIP());Serial.println(")");
-      timeClient.begin();
-      break;
-    } else {
-      Serial.printf("Attempting WiFi connection (%d)\n",i+1);
+  if(WiFi.status() != WL_CONNECTED){
+    Serial.printf("Attempting WiFi connection with %s:%s\n",settings.wifi_ssid, settings.wifi_password);
+    WiFi.begin(settings.wifi_ssid, settings.wifi_password);
+    for(int i = 0; i < 30; i++){
+      delay(1000);
+      if(WiFi.status() == WL_CONNECTED){
+        Serial.print("WiFi Connection Established! (IP address: ");Serial.print(WiFi.localIP());Serial.println(")");
+        timeClient.begin();
+        break;
+      } else {
+        Serial.printf("Attempting WiFi connection (%d)\n",i+1);
+      }
     }
   }
   if(WiFi.status() != WL_CONNECTED){
-    Serial.println("WiFi Connection Error! (check SSID or Password)");
+    Serial.println("WiFi Connection Error! (check SSID, Password, or network availability)");
   }
 
+
+  if (!RTC.begin()) {Serial.println("RTC module missing!");}
+  timeClient.setTimeOffset(settings.time_offset);
   syncRTC();
   clearDisplay();
   delay(1000);
