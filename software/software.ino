@@ -10,6 +10,7 @@ RTC_DS3231 RTC;
 DateTime RTCnow;
 short shownDisplay = 0;
 short shownMinute = -1;
+bool debug;
 time_t now;
 tm tm;
 
@@ -23,6 +24,7 @@ struct {
   int active_lowerbound;
   int active_upperbound;
   char timezone[48] = "";
+  bool debug;
 } settings;
 
 struct {
@@ -66,20 +68,21 @@ void setup() {
   String inString;
 
   Serial.setTimeout(15000);
-  Serial.println("\nWelcome to the Flipdot Clock Software Version 1.0!");
+  Serial.println("\nWelcome to the Flipdot Clock Software Version 1.1!");
   Serial.printf("  Current WiFi settings: {SSID: %s, PASSWORD: %s}\n",settings.wifi_ssid, settings.wifi_password);
   if(settings.active_hours_enable){Serial.printf("  Current active hours: {ENABLE: true, START: %d, STOP: %d}\n",settings.active_lowerbound,settings.active_upperbound);}else{Serial.printf("  Current active hours: {ENABLE: false}\n");}
   Serial.printf("  Current time offset: {OFFSET: %d seconds}\n",settings.time_offset);
   Serial.printf("  Current flip delay: {DELAY: %d milliseconds}\n",settings.flip_delay);
   if(settings.left_is_MSD){Serial.printf("  Current mode: {MSD: left}\n");} else {Serial.printf("  Current mode: {MSD: right}\n");}
   Serial.printf("  Current timezone: {TIMEZONE: %s}\n",settings.timezone);
+  Serial.printf("  Debug mode: {DEBUG: %s}\n",settings.debug ? "true" : "false");
   Serial.println("Would you like to enter settings? (y/n) (15s timeout)");
   
   inString = Serial.readStringUntil('\n');
   if (inString[0] == 'y'){
     Serial.setTimeout(30000);
     while(true){
-      Serial.println("What would you like to change? (wifi/offset/delay/mode/active/timezone/exit)");
+      Serial.println("What would you like to change? (wifi/offset/delay/mode/active/timezone/debug/exit)");
       inString = "";
       inString = Serial.readStringUntil('\n');
       if (inString == "wifi"){
@@ -164,6 +167,16 @@ void setup() {
         } else {
           Serial.println("timezone was not long enough!");
         }
+      } else if (inString == "debug"){
+        Serial.println("Enter if debug mode should be enabled? (true/false)");
+        inString = "";
+        inString = Serial.readStringUntil('\n');
+        if(inString == "true") {
+          settings.debug = true;
+        } else {
+          settings.debug = false;
+        }
+        Serial.printf("  New debug: {DEBUG: %s}\n",settings.debug ? "true" : "false");
       } else if (inString == "exit"){
         break;
       } else {
@@ -174,10 +187,12 @@ void setup() {
     EEPROM.commit();
     Serial.println("Settings saved to flash.");
   } 
+  
   Serial.println("Starting up!");
+  debug = settings.debug;
 
   if(WiFi.status() != WL_CONNECTED){
-    Serial.printf("Attempting WiFi connection with %s:%s\n",settings.wifi_ssid, settings.wifi_password);
+    if(debug){Serial.printf("DEBUG: Attempting WiFi connection with %s:%s\n",settings.wifi_ssid, settings.wifi_password);}
     WiFi.begin(settings.wifi_ssid, settings.wifi_password);
     for(int i = 0; i < 30; i++){
       delay(1000);
@@ -192,6 +207,7 @@ void setup() {
   if(WiFi.status() != WL_CONNECTED){
     Serial.println("WiFi Connection Error! (check SSID, Password, or network availability)");
   }
+
 
   Serial.println("Configuring Time...");
   configTime(settings.timezone, NTP_SERVER);
@@ -243,7 +259,7 @@ void flashDisplay(){
 }
 
 void writeTime(short hours, short minutes){
-  //Serial.printf("IN: H:%d, M:%d\n",hours,minutes);
+  //if(debug){Serial.printf("DEBUG: writeTime(hours=%d, minutes=%d)\n",hours,minutes);}
   short newDisplay = 0;
   short tenMins = (minutes/10)%10;
   short oneMins = minutes%10;
@@ -286,6 +302,7 @@ void writeTime(short hours, short minutes){
 }
 
 void writeDot(char location, bool state){ // one dot at a time
+      //if(debug){Serial.printf("DEBUG: writeDot(location=%d, state=%d)\n",location,state);}
       SR.disable(); // why not
       SR.clear();
       for(short i = 0; i < 12; i++){
@@ -317,12 +334,15 @@ void writeDot(char location, bool state){ // one dot at a time
 
 void syncRTC(){
   if(WiFi.status() == WL_CONNECTED){
-    time(&now);                       // read the current time
+    time(&now);
+    if(debug){Serial.printf("DEBUG: syncRTC(): got utc epoch: %d\n",now);}
     localtime_r(&now, &tm);           // update the structure tm with the current time
-    RTC.adjust(DateTime(now+settings.time_offset));    //update RTC
+    DateTime dt = DateTime(tm.tm_year+1900, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec+settings.time_offset);
+    RTC.adjust(dt);    //update RTC
+    if(debug){char tform [] = "hh:mm:ss";Serial.printf("DEBUG: syncRTC(): datetime: %s\n",dt.toString(tform));}
     Serial.println("Synced RTC!");
   } else if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi is NOT connected, could NOT sync time!");
+    Serial.println("ERROR: WiFi is NOT connected, could NOT sync time! (Did your wifi name/password change?)");
   }
 }
 
@@ -343,7 +363,7 @@ void loop() {
           Serial.println("Outside active hours.");
           if(shownDisplay != 0){clearDisplay();}
         }
-      } else {
+      } else {  
         Serial.printf("TIME: %d:%d\n",RTCnow.hour(), RTCnow.minute());
         writeTime(RTCnow.hour(), RTCnow.minute());
       }
