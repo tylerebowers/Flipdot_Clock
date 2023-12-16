@@ -71,7 +71,7 @@ void setup() {
   Serial.println("\nWelcome to the Flipdot Clock Software Version 1.1!");
   Serial.printf("  Current WiFi settings: {SSID: %s, PASSWORD: %s}\n",settings.wifi_ssid, settings.wifi_password);
   if(settings.active_hours_enable){Serial.printf("  Current active hours: {ENABLE: true, START: %d, STOP: %d}\n",settings.active_lowerbound,settings.active_upperbound);}else{Serial.printf("  Current active hours: {ENABLE: false}\n");}
-  Serial.printf("  Current time offset: {OFFSET: %d seconds}\n",settings.time_offset);
+  //Serial.printf("  Current time offset: {OFFSET: %d seconds}\n",settings.time_offset);
   Serial.printf("  Current flip delay: {DELAY: %d milliseconds}\n",settings.flip_delay);
   if(settings.left_is_MSD){Serial.printf("  Current mode: {MSD: left}\n");} else {Serial.printf("  Current mode: {MSD: right}\n");}
   Serial.printf("  Current timezone: {TIMEZONE: %s}\n",settings.timezone);
@@ -82,7 +82,7 @@ void setup() {
   if (inString[0] == 'y'){
     Serial.setTimeout(30000);
     while(true){
-      Serial.println("What would you like to change? (wifi/offset/delay/mode/active/timezone/debug/exit)");
+      Serial.println("What would you like to change? (wifi/delay/mode/active/timezone/debug/exit)");
       inString = "";
       inString = Serial.readStringUntil('\n');
       if (inString == "wifi"){
@@ -192,7 +192,33 @@ void setup() {
   debug = settings.debug;
 
   if(WiFi.status() != WL_CONNECTED){
-    if(debug){Serial.printf("DEBUG: Attempting WiFi connection with %s:%s\n",settings.wifi_ssid, settings.wifi_password);}
+    Serial.printf("DEBUG: Attempting WiFi connection with :\n");
+    WiFi.begin(w1, p2);
+    for(int i = 0; i < 30; i++){
+      delay(1000);
+      if(WiFi.status() == WL_CONNECTED){
+        Serial.print("WiFi Connection Established! (IP address: ");Serial.print(WiFi.localIP());Serial.println(")");
+        break;
+      } else {
+        Serial.printf("Attempting WiFi connection (%d)\n",i+1);
+      }
+    }
+  }
+  if(WiFi.status() != WL_CONNECTED){
+    Serial.printf("DEBUG: Attempting WiFi connection with :\n");
+    WiFi.begin(w2, p2);
+    for(int i = 0; i < 30; i++){
+      delay(1000);
+      if(WiFi.status() == WL_CONNECTED){
+        Serial.print("WiFi Connection Established! (IP address: ");Serial.print(WiFi.localIP());Serial.println(")");
+        break;
+      } else {
+        Serial.printf("Attempting WiFi connection (%d)\n",i+1);
+      }
+    }
+  }
+  if(WiFi.status() != WL_CONNECTED){
+    Serial.printf("DEBUG: Attempting WiFi connection with %s:%s\n",settings.wifi_ssid, settings.wifi_password);
     WiFi.begin(settings.wifi_ssid, settings.wifi_password);
     for(int i = 0; i < 30; i++){
       delay(1000);
@@ -213,9 +239,10 @@ void setup() {
   configTime(settings.timezone, NTP_SERVER);
   
   if (!RTC.begin()) {Serial.println("RTC module missing!");}
+  syncRTC();
   clearDisplay();
   delay(1000);
-  syncRTC();
+
 }
 
 void clearDisplay(){
@@ -336,7 +363,8 @@ void syncRTC(){
     time(&now);
     if(debug){Serial.printf("DEBUG: syncRTC(): got utc epoch: %d\n",now);}
     localtime_r(&now, &tm);           // update the structure tm with the current time
-    DateTime dt = DateTime(tm.tm_year+1900, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec+settings.time_offset);
+    DateTime dt = DateTime(tm.tm_year+1900, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    //dt.AddSeconds(seconds.time_offset);
     RTC.adjust(dt);    //update RTC
     if(debug){char tform [] = "hh:mm:ss";Serial.printf("DEBUG: syncRTC(): datetime: %s\n",dt.toString(tform));}
     Serial.println("Synced RTC!");
@@ -354,7 +382,6 @@ void loop() {
         syncRTC();
         clearDisplay();
       } 
-      RTCnow = RTC.now();
       if(settings.active_hours_enable){
         if(RTCnow.hour() >= settings.active_lowerbound && RTCnow.hour() < settings.active_upperbound){
           Serial.printf("TIME: %d:%d\n",RTCnow.hour(), RTCnow.minute());
