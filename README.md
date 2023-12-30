@@ -18,7 +18,7 @@ This repo contains the all parts to the Flipdot Clock that I designed in mid 202
 ![Picture of all dots](images/all_on.JPEG)
 
 ### Wiring
-![Picture of wiring(images/wiring.JPEG)
+![Picture of wiring](images/wiring.JPEG)
 
 ### Single Dot
 ![Picture of a dot](images/single_dot.JPG)
