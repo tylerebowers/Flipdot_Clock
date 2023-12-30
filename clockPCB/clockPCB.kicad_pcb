@@ -2958,6 +2958,9 @@
   (gr_text "  ^\nUSB" (at 133.604 22.352) (layer "F.SilkS") (tstamp cdc3bc5f-e89a-4be0-b55a-bab845bdcc42)
     (effects (font (size 1.5 1.5) (thickness 0.3) bold) (justify left bottom))
   )
+  (gr_text "You can also use TBD62783APG, or TBD62786APG for the transistor array.\nThe difference is that the TBD62786APG is output low when input high, and output high when input low.\nTBD62783APG is output low when input low, and output high when input high.\nPlease make sure that the board is configured correctly for using the chip you choose.\n" (at 155.5496 84.8614) (layer "Cmts.User") (tstamp 81cf8c21-5e01-429e-a4d1-cba899570f8c)
+    (effects (font (size 1.5 1.5) (thickness 0.3) bold) (justify left bottom))
+  )
 
   (segment (start 139.446 141.6685) (end 144.526 141.6685) (width 0.4) (layer "F.Cu") (net 0) (tstamp 003992c6-0bf9-4c92-b0b3-cdb88d0fcb7f))
   (segment (start 138.684 102.0445) (end 138.938 102.0445) (width 0.25) (layer "F.Cu") (net 0) (tstamp 030537a7-1ab5-44a7-bdc9-8ef4e196f468))
